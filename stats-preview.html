@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>統計プレビュー(サンプル)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --primary:#3B5AA6; --primary-dark:#2C4380; --bg:#F3F5FA; --card:#FFFFFF; --border:#E4E6EE;
+    --text:#1E2233; --sub:#6B7280;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;background:var(--bg);color:var(--text);}
+  #app{max-width:480px;margin:0 auto;min-height:100vh;padding-bottom:32px;}
+  .appbar{
+    background:linear-gradient(135deg, var(--primary), var(--primary-dark));color:#fff;padding:18px 16px;
+    box-shadow:0 2px 10px rgba(44,67,128,.25);
+  }
+  .appbar h1{font-size:17px;margin:0 0 2px;font-weight:700;}
+  .appbar p{margin:0;font-size:12px;opacity:.85;}
+  .content{padding:16px;}
+  .hint{
+    background:linear-gradient(135deg,#FFF8E1,#FFF3C4);border:1px solid #FFE082;border-radius:10px;
+    padding:11px;font-size:12.5px;text-align:center;margin-bottom:16px;color:#6b5900;
+  }
+  .chart-wrap{background:#fff;border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:14px;}
+  .chart-wrap h4{margin:0 0 10px 0;font-size:13.5px;display:flex;align-items:center;gap:6px;}
+  .chart-canvas-box{position:relative;height:200px;}
+  select{
+    width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;
+    background:#fff;font-family:inherit;margin-bottom:10px;
+  }
+  .rank-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .rank-table th, .rank-table td{padding:8px 6px;text-align:left;border-bottom:1px solid #f0f0f5;}
+  .rank-table th{color:var(--sub);font-weight:700;font-size:11.5px;}
+  .rank-badge{display:inline-flex;width:20px;height:20px;border-radius:50%;background:#eef1fb;color:var(--primary);
+    align-items:center;justify-content:center;font-size:11px;font-weight:800;margin-right:6px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="appbar">
+    <h1>📊 統計(プレビュー)</h1>
+    <p>サンプルデータでの表示イメージです。実際のデータではありません。</p>
+  </div>
+  <div class="content">
+    <div class="hint">🔮 これはダミーの記録データで作った完成イメージです。実際のアプリにデータが貯まると、統計画面はこのように表示されます。</div>
+
+    <div class="chart-wrap"><h4>📈 月別記録数の推移(直近6ヶ月)</h4>
+      <div class="chart-canvas-box"><canvas id="trendChart"></canvas></div></div>
+
+    <div class="chart-wrap"><h4>📊 分類別の件数</h4>
+      <div class="chart-canvas-box"><canvas id="catChart"></canvas></div></div>
+
+    <div class="chart-wrap">
+      <h4>🕸 メンバー別スコア平均</h4>
+      <select id="memberSelect"></select>
+      <div class="chart-canvas-box"><canvas id="radarChart"></canvas></div>
+    </div>
+
+    <div class="chart-wrap">
+      <h4>🏆 記録数ランキング</h4>
+      <div id="rankingTable"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== サンプルデータ(このファイル専用。実データには一切触れません) ===== */
+const CATEGORIES = {
+  jitsumu:  {label:'実務作業', color:'#1565C0'},
+  kyouiku:  {label:'教育',     color:'#2E7D32'},
+  kaizen:   {label:'改善',     color:'#6A1B9A'},
+  trouble:  {label:'トラブル', color:'#C62828'},
+  followUp: {label:'フォロー', color:'#EF6C00'},
+  oneOnOne: {label:'1on1',     color:'#00796B'}
+};
+const SCORE_FIELDS = ['initiative','improvement','teamwork','responsibility','education'];
+const SCORE_LABELS = {initiative:'主体性', improvement:'改善力', teamwork:'協調性', responsibility:'責任感', education:'教育力'};
+const MEMBERS = ['山田太郎','佐藤花子','鈴木一郎'];
+
+function sampleRecords(){
+  const now = Date.now(); const day = 86400000;
+  return [
+    {dateTime:now-1*day,  name:'山田太郎', category:'jitsumu', scores:{initiative:2, responsibility:3}},
+    {dateTime:now-3*day,  name:'佐藤花子', category:'kyouiku', scores:{education:3, teamwork:2}},
+    {dateTime:now-5*day,  name:'鈴木一郎', category:'trouble', scores:{responsibility:3, improvement:2}},
+    {dateTime:now-7*day,  name:'山田太郎', category:'oneOnOne', scores:{}},
+    {dateTime:now-14*day, name:'山田太郎', category:'kaizen', scores:{initiative:3, improvement:3}},
+    {dateTime:now-20*day, name:'佐藤花子', category:'followUp', scores:{teamwork:3, responsibility:2}},
+    {dateTime:now-35*day, name:'鈴木一郎', category:'jitsumu', scores:{initiative:2, responsibility:2}},
+    {dateTime:now-40*day, name:'佐藤花子', category:'jitsumu', scores:{initiative:1, responsibility:2}},
+    {dateTime:now-50*day, name:'山田太郎', category:'trouble', scores:{responsibility:3, improvement:2}},
+    {dateTime:now-65*day, name:'鈴木一郎', category:'kyouiku', scores:{education:2, teamwork:2}},
+    {dateTime:now-80*day, name:'佐藤花子', category:'kaizen', scores:{initiative:2, improvement:3}},
+    {dateTime:now-95*day, name:'山田太郎', category:'jitsumu', scores:{initiative:3, responsibility:3}}
+  ];
+}
+const records = sampleRecords();
+let currentMember = MEMBERS[0];
+
+/* ===== 月別推移 ===== */
+const months = [];
+const now = new Date();
+for(let i=5;i>=0;i--){ months.push(new Date(now.getFullYear(), now.getMonth()-i, 1)); }
+const monthLabels = months.map(d=>`${d.getMonth()+1}月`);
+const monthCounts = months.map(d=>records.filter(r=>{
+  const rd = new Date(r.dateTime); return rd.getFullYear()===d.getFullYear() && rd.getMonth()===d.getMonth();
+}).length);
+new Chart(document.getElementById('trendChart'), {
+  type:'line',
+  data:{ labels: monthLabels, datasets:[{ label:'記録数', data: monthCounts, borderColor:'#3B5AA6', backgroundColor:'rgba(59,90,166,.12)', fill:true, tension:.35, pointRadius:4, pointBackgroundColor:'#3B5AA6' }] },
+  options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, ticks:{ stepSize:1 } } } }
+});
+
+/* ===== 分類別件数 ===== */
+const catCounts = Object.keys(CATEGORIES).map(k=>records.filter(r=>r.category===k).length);
+new Chart(document.getElementById('catChart'), {
+  type:'bar',
+  data:{ labels: Object.values(CATEGORIES).map(c=>c.label), datasets:[{ data: catCounts, backgroundColor: Object.values(CATEGORIES).map(c=>c.color), borderRadius:6 }] },
+  options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, ticks:{ stepSize:1 } } } }
+});
+
+/* ===== メンバー別スコア平均(レーダー) ===== */
+const memberSelect = document.getElementById('memberSelect');
+memberSelect.innerHTML = MEMBERS.map(n=>`<option value="${n}">${n}</option>`).join('');
+let radarChart;
+function renderRadar(){
+  const recs = records.filter(r=>r.name===currentMember);
+  const data = SCORE_FIELDS.map(f=>{
+    const vals = recs.map(r=>r.scores && r.scores[f]).filter(v=>v!==undefined && v!==null);
+    return vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length) : 0;
+  });
+  if(radarChart) radarChart.destroy();
+  radarChart = new Chart(document.getElementById('radarChart'), {
+    type:'radar',
+    data:{ labels: SCORE_FIELDS.map(f=>SCORE_LABELS[f]), datasets:[{ label:currentMember, data, backgroundColor:'rgba(59,90,166,.2)', borderColor:'#3B5AA6', pointBackgroundColor:'#3B5AA6' }] },
+    options:{ responsive:true, maintainAspectRatio:false, scales:{ r:{ min:0, max:3, ticks:{ stepSize:1 } } }, plugins:{legend:{display:false}} }
+  });
+}
+memberSelect.onchange = ()=>{ currentMember = memberSelect.value; renderRadar(); };
+renderRadar();
+
+/* ===== ランキング ===== */
+function esc(s){ return (s||'').toString().replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+const counts = MEMBERS.map(name=>{
+  const recs = records.filter(r=>r.name===name);
+  const allScores = recs.flatMap(r=>Object.values(r.scores||{}));
+  const avg = allScores.length ? (allScores.reduce((a,b)=>a+b,0)/allScores.length) : null;
+  return {name, count:recs.length, avg};
+}).sort((a,b)=>b.count-a.count);
+document.getElementById('rankingTable').innerHTML = `
+  <table class="rank-table"><thead><tr><th></th><th>氏名</th><th>記録数</th><th>平均スコア</th></tr></thead><tbody>
+    ${counts.map((c,i)=>`<tr><td><span class="rank-badge">${i+1}</span></td><td>${esc(c.name)}</td><td>${c.count}件</td><td>${c.avg!==null?c.avg.toFixed(1):'-'}</td></tr>`).join('')}
+  </tbody></table>`;
+</script>
+</body>
+</html>
